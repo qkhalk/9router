@@ -3,18 +3,16 @@
 // The `__Host-` prefix forces Secure=true and Path=/ with no Domain attribute;
 // when running over plain HTTP locally we fall back to a non-prefixed name so
 // the cookie still works.
-import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import * as sessionsRepo from "@/lib/db/repos/sessionsRepo.js";
 import { getClientIp } from "./loginLimiter.js";
+import { generateSessionToken, hashSessionToken } from "./sessionToken.js";
+
+export { generateSessionToken, hashSessionToken };
 
 export const CLIENT_SESSION_COOKIE = "__Host-client_session";
 export const CLIENT_SESSION_COOKIE_DEV = "client_session"; // HTTP dev fallback
 export const CLIENT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7d
-
-function cookieName(request) {
-  return isSecureRequest(request) ? CLIENT_SESSION_COOKIE : CLIENT_SESSION_COOKIE_DEV;
-}
 
 function isSecureRequest(request) {
   if (!request) return process.env.NODE_ENV === "production";
@@ -23,12 +21,8 @@ function isSecureRequest(request) {
   return process.env.AUTH_COOKIE_SECURE === "true" || process.env.NODE_ENV === "production";
 }
 
-export function generateSessionToken() {
-  return crypto.randomBytes(32).toString("base64url");
-}
-
-export function hashSessionToken(token) {
-  return crypto.createHash("sha256").update(token).digest("hex");
+function cookieName(request) {
+  return isSecureRequest(request) ? CLIENT_SESSION_COOKIE : CLIENT_SESSION_COOKIE_DEV;
 }
 
 export async function createClientSession({ userId, request = null, ttlMs = CLIENT_SESSION_TTL_MS } = {}) {

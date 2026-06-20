@@ -8,15 +8,26 @@
 //  - Schema version 2: new tables (users, otpChallenges, auditLogs, …) get
 //    auto-created on first boot via syncSchemaFromTables().
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+
+// Mock next/headers so clientSession.js (which only uses cookies() inside
+// route handlers) can be loaded in plain Node test runtime without Next.
+vi.mock("next/headers", () => ({
+  cookies: () => ({
+    set: vi.fn(),
+    get: vi.fn(),
+    delete: vi.fn(),
+  }),
+}));
 
 import { generateOtp, hashOtp, hashOtpForUser, __setOtpSaltForTest, __resetOtpSaltForTest } from "../../src/lib/auth/otp.js";
 import { checkRateLimit, limits, resetRateLimitStore } from "../../src/lib/rateLimit/index.js";
 import { verifyTurnstile } from "../../src/lib/auth/turnstile.js";
 import { SCHEMA_VERSION, TABLES, buildCreateTableSql } from "../../src/lib/db/schema.js";
+import { hashSessionToken } from "../../src/lib/auth/sessionToken.js";
 import { migrations as _dummy } from "../../src/lib/db/migrations/index.js"; // ensure importable
 
 beforeEach(() => {
@@ -137,11 +148,10 @@ describe("Schema (Phase 1)", () => {
 });
 
 describe("Session token hashing", () => {
-  it("hashSessionToken is sha256-hex deterministic", async () => {
-    const cs = await import("../../src/lib/auth/clientSession.js");
-    const h1 = cs.hashSessionToken("hello");
-    const h2 = cs.hashSessionToken("hello");
-    const h3 = cs.hashSessionToken("world");
+  it("hashSessionToken is sha256-hex deterministic", () => {
+    const h1 = hashSessionToken("hello");
+    const h2 = hashSessionToken("hello");
+    const h3 = hashSessionToken("world");
     expect(h1).toBe(h2);
     expect(h1).not.toBe(h3);
     expect(h1).toMatch(/^[0-9a-f]{64}$/);

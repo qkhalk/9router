@@ -17,6 +17,15 @@ export default defineConfig({
     maxConcurrency: 60,
     // Suppress noisy console output from handlers under test
     silent: false,
+    server: {
+      // Inline-transform everything under src/ so dynamic/static imports
+      // from test files land in vitest's resolver, which honors
+      // resolve.alias. Without this, vitest 4 lets Node's ESM loader take
+      // over for the alias imports and they fail with ERR_MODULE_NOT_FOUND.
+      deps: {
+        inline: [/\/src\/.+\.js$/],
+      },
+    },
   },
   resolve: {
     // Use array form so subpath aliases (e.g. "@/lib/db/index.js") resolve correctly.
