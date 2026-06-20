@@ -1,5 +1,5 @@
 // Latest schema version — bumped when a migration is added in ./migrations/
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const PRAGMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -146,6 +146,140 @@ export const TABLES = {
       "CREATE INDEX IF NOT EXISTS idx_rd_provider ON requestDetails(provider)",
       "CREATE INDEX IF NOT EXISTS idx_rd_model ON requestDetails(model)",
       "CREATE INDEX IF NOT EXISTS idx_rd_conn ON requestDetails(connectionId)",
+    ],
+  },
+
+  // ─── Phase 1: Client Portal + Admin Portal (auth, OTP, RBAC, audit) ─────
+  // Additive only — syncSchemaFromTables() creates them on first boot.
+  users: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      email: "TEXT UNIQUE NOT NULL",
+      username: "TEXT",
+      passwordHash: "TEXT",
+      role: "TEXT NOT NULL DEFAULT 'CLIENT'",
+      status: "TEXT NOT NULL DEFAULT 'PENDING_VERIFICATION'",
+      emailVerifiedAt: "TEXT",
+      lastLoginAt: "TEXT",
+      mfaSecretEncrypted: "TEXT",
+      mfaEnabled: "INTEGER NOT NULL DEFAULT 0",
+      createdAt: "TEXT NOT NULL",
+      updatedAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)",
+      "CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)",
+      "CREATE INDEX IF NOT EXISTS idx_users_created ON users(createdAt DESC)",
+    ],
+  },
+
+  authIdentities: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      userId: "TEXT NOT NULL",
+      provider: "TEXT NOT NULL",
+      providerAccountId: "TEXT NOT NULL",
+      providerEmail: "TEXT",
+      emailVerified: "INTEGER NOT NULL DEFAULT 0",
+      createdAt: "TEXT NOT NULL",
+      lastLoginAt: "TEXT",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_ai_user ON authIdentities(userId)",
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_provider_account ON authIdentities(provider, providerAccountId)",
+    ],
+  },
+
+  sessions: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      userId: "TEXT NOT NULL",
+      sessionType: "TEXT NOT NULL",
+      tokenHash: "TEXT NOT NULL",
+      ipAddress: "TEXT",
+      userAgent: "TEXT",
+      expiresAt: "TEXT NOT NULL",
+      revokedAt: "TEXT",
+      createdAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(tokenHash)",
+      "CREATE INDEX IF NOT EXISTS idx_sessions_user_type ON sessions(userId, sessionType)",
+      "CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expiresAt)",
+    ],
+  },
+
+  otpChallenges: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      userId: "TEXT",
+      email: "TEXT NOT NULL",
+      purpose: "TEXT NOT NULL",
+      otpHash: "TEXT NOT NULL",
+      attempts: "INTEGER NOT NULL DEFAULT 0",
+      maxAttempts: "INTEGER NOT NULL DEFAULT 5",
+      expiresAt: "TEXT NOT NULL",
+      consumedAt: "TEXT",
+      supersededAt: "TEXT",
+      createdIp: "TEXT",
+      createdAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_otp_email_purpose ON otpChallenges(email, purpose, consumedAt)",
+      "CREATE INDEX IF NOT EXISTS idx_otp_expires ON otpChallenges(expiresAt)",
+    ],
+  },
+
+  allowedEmailDomains: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      domain: "TEXT UNIQUE NOT NULL",
+      isEnabled: "INTEGER NOT NULL DEFAULT 1",
+      createdBy: "TEXT",
+      createdAt: "TEXT NOT NULL",
+      updatedAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_aed_enabled ON allowedEmailDomains(isEnabled)",
+    ],
+  },
+
+  securityEvents: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      userId: "TEXT",
+      eventType: "TEXT NOT NULL",
+      riskScore: "INTEGER DEFAULT 0",
+      ipAddress: "TEXT",
+      userAgent: "TEXT",
+      ephemeralId: "TEXT",
+      metadata: "TEXT",
+      createdAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_se_user ON securityEvents(userId, createdAt DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_se_event_type ON securityEvents(eventType, createdAt DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_se_ip ON securityEvents(ipAddress, createdAt DESC)",
+    ],
+  },
+
+  auditLogs: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      actorUserId: "TEXT",
+      action: "TEXT NOT NULL",
+      entityType: "TEXT",
+      entityId: "TEXT",
+      beforeData: "TEXT",
+      afterData: "TEXT",
+      ipAddress: "TEXT",
+      userAgent: "TEXT",
+      createdAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_al_actor ON auditLogs(actorUserId, createdAt DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_al_action ON auditLogs(action, createdAt DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_al_entity ON auditLogs(entityType, entityId)",
     ],
   },
 };

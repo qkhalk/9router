@@ -44,6 +44,7 @@
     "sql.js": "^1.14.1",
     "undici": "^7.19.2",
     "uuid": "^13.0.0",
+    "vitest": "^4.1.9",
     "zustand": "^5.0.10"
   },
   "optionalDependencies": {

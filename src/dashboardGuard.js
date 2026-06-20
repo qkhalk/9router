@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSettings, validateApiKey } from "@/lib/localDb";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 import { verifyDashboardAuthToken } from "@/lib/auth/dashboardSession";
+import { verifyClientSession } from "@/lib/auth/clientSession";
 
 const CLI_TOKEN_HEADER = "x-9r-cli-token";
 const CLI_TOKEN_SALT = "9r-cli-auth";
@@ -27,6 +28,13 @@ const PUBLIC_API_PATHS = [
   "/api/auth/logout",
   "/api/auth/status",
   "/api/auth/oidc",
+  "/api/auth/register/email",
+  "/api/auth/register/google",
+  "/api/auth/verify-registration",
+  "/api/auth/login/email",
+  "/api/auth/verify-login",
+  "/api/auth/resend-otp",
+  "/api/auth/forgot-password",
   "/api/version",
   "/api/settings/require-login",
 ];
@@ -244,6 +252,25 @@ export async function proxy(request) {
     }
 
     return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // Client portal: /app/* requires a valid __Host-client_session cookie.
+  // Admins (role gate) get through too so the dashboard team can preview it.
+  if (pathname.startsWith("/app")) {
+    const settings = await loadSettings();
+    const requireClientLogin = settings ? settings.requireClientLogin !== false : true;
+    if (!requireClientLogin) return NextResponse.next();
+
+    const session = await verifyClientSession(request);
+    if (session) return NextResponse.next();
+    // Fallback: legacy auth_token still grants access during the migration window.
+    if (await hasValidToken(request)) return NextResponse.next();
+    // Public pages inside /app that should never require login.
+    const clientPublicPrefixes = ["/app/login", "/app/register", "/app/verify", "/app/forgot-password"];
+    if (clientPublicPrefixes.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+      return NextResponse.next();
+    }
+    return NextResponse.redirect(new URL("/app/login", request.url));
   }
 
   // Redirect / to /dashboard if logged in, or /dashboard if it's the root

@@ -1,6 +1,6 @@
 # Phase 1 — Database & Authentication
 
-_Parent: [9router-upgrade.md](../9router-upgrade.md) · Status: design_
+_Parent: [9router-upgrade.md](../9router-upgrade.md) · Status: in-progress_
 
 ## Mục tiêu
 
